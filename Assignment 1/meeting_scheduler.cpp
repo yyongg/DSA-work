@@ -12,6 +12,14 @@ struct Meeting {
 // 1
 
 bool hasConflictNaive(vector<Meeting> meetings) {
+    /*
+    Naive approach to figuring out conflicts, O(n^2)
+
+    Input:
+        meetings: List of the scheduled meetings.
+    Returns:
+        boolean: Whether a conflict was found.
+    */
     int n = meetings.size();
     for (int i = 0; i < n; i++)
         for (int j = i + 1; j < n; j++)
@@ -24,6 +32,14 @@ bool hasConflictNaive(vector<Meeting> meetings) {
 // 2
 
 bool hasConflictSorted(vector<Meeting> meetings) {
+    /*
+    O(nlog(n)) approach to finding conflicts in scheduled meetings by sorting by start times beforehand.
+
+    Input:
+        meetings: List of the scheduled meetings.
+    Returns:
+        boolean: Whether a conflict was found.
+    */
     sort(meetings.begin(), meetings.end(),
          [](const Meeting& a, const Meeting& b) { return a.start < b.start; });
 
