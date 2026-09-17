@@ -1,59 +1,108 @@
-class Node[T]:
-    def __init__(self, data: T):
-        self.data: T = data
-        self.next: Node = None  # Pointer to the next node
-        self.prev: Node = None  # Pointer to the previous node
+from typing import Optional, Any
+
+class Node:
+    def __init__(self, data: Any):
+        self.data: Any = data
+        self.next: Optional[Node] = None  # Pointer to the next node
+        self.prev: Optional[Node] = None  # Pointer to the previous node
 
 
-class LinkedList[T]:
+class LinkedList:
     def __init__(self):
-        self.head: T|None = None  # Start of the list
-        self.tail: T|None = None  # End of the list
-    
-    """
-    Adds the element [data] to the front of the linked list.
-    """
-    def pushFront(self, data: T):
-        if not self.head:
-            self.head = data
+        self.head: Any = None  # Start of the list
+        self.tail: Any = None  # End of the list
+
+    def pushFront(self, data: Any):
+        """
+        Adds the element [data] to the front of the linked list.
+        """
+        node: Node = Node(data)
+
+        if not self.head:  # if list empty
+            self.tail = node
 
         else:
-            
+            node.next = self.head
+            self.head.prev = node
 
-    """
-     * Adds the element [data] to the back of the linked list.
-    """
-    def pushBack(self, data: T):
-        return None
+        self.head = node
 
-    """
-     * Removes an element from the front of the list. If the list is empty, it is unchanged.
-     * @return the value at the front of the list or nil if none exists
-     """
-    def popFront() -> T:
-        return None
+    def pushBack(self, data: Any):
+        """
+        Adds the element [data] to the back of the linked list.
+        """
+        node: Node = Node(data)
 
-    """
-     * Removes an element from the back of the list. If the list is empty, it is unchanged.
-     * @return the value at the back of the list or nil if none exists
-     """
-    def popBack() -> T:
-        return None
+        if not self.head:  # if list empty
+            self.head = node
 
-    """
-     * @return the value at the front of the list or nil if none exists
-     """
-    def peekFront() -> T:
-        return None
+        else:
+            node.prev = self.tail
+            self.tail.next = node
 
-    """
-     * @return the value at the back of the list or nil if none exists
-     """
-    def peekBack() -> T:
-        return None
+        self.tail = node
 
-    """
-     * @return true if the list is empty and false otherwise
-     """
-    def isEmpty() -> bool:
-        return None
+    def popFront(self) -> Any:
+        """
+        Removes an element from the front of the list. If the list is empty, it is unchanged.
+
+        Returns:
+            The value at the front of the list, or None if none exists.
+        """
+        if not self.head:
+            return None
+
+        elif self.head == self.tail:
+            pop: Any = self.head.data
+            self.head = None
+            self.tail = None
+
+        else:
+            pop: Any = self.head.data
+            self.head = self.head.next
+            self.head.prev = None
+
+        return pop
+
+    def popBack(self) -> Any:
+        """
+        Removes an element from the back of the list. If the list is empty, it is unchanged.
+
+        Returns:
+            The value at the back of the list, or None if none exists.
+        """
+        if not self.tail:
+            return None
+
+        elif self.head == self.tail:
+            pop: Any = self.head.data
+            self.head = None
+            self.tail = None
+
+        else:
+            pop: Any = self.tail.data
+            self.tail = self.tail.prev
+            self.tail.next = None
+
+        return pop
+
+    def peekFront(self) -> Any:
+        """
+        Returns:
+            The value at the front of the list, or None if none exists.
+        """
+        return self.head.data
+
+    def peekBack(self) -> Any:
+        """
+        Returns:
+            The value at the back of the list, or None if none exists.
+        """
+        return self.tail.data
+
+    def isEmpty(self) -> bool:
+        """
+        Returns:
+            True if the list is empty and False otherwise.
+        """
+        return self.head
