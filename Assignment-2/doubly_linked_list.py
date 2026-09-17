@@ -91,18 +91,18 @@ class LinkedList:
         Returns:
             The value at the front of the list, or None if none exists.
         """
-        return self.head.data
+        return self.head.data if self.head else None
 
     def peekBack(self) -> Any:
         """
         Returns:
             The value at the back of the list, or None if none exists.
         """
-        return self.tail.data
+        return self.tail.data if self.tail else None
 
     def isEmpty(self) -> bool:
         """
         Returns:
             True if the list is empty and False otherwise.
         """
-        return self.head
+        return not self.head
