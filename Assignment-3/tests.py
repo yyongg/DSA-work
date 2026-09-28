@@ -3,6 +3,7 @@ import unittest
 
 from dijkstra import dijkstra
 from graph import Graph
+from maze_solver import solve_maze
 
 
 class TestGraph(unittest.TestCase):
@@ -327,6 +328,193 @@ class TestDijkstra(unittest.TestCase):
                     self.assertEqual(path[0], 0)
                     self.assertEqual(path[-1], target)
                     self.assertEqual(self.path_cost(path), cost, f"edges={edges}")
+
+
+# Sample cases from the problem page
+SAMPLE_1 = [
+    "###########",
+    "#....T#.#.#",
+    "#.#.###.#.#",
+    "#.#.#.....#",
+    "#.#.#.###.#",
+    "#.#.#.#.#.#",
+    "#.#.#.#S#.#",
+    "#.#.#.#.#.#",
+    "#.#.###.#.#",
+    "#.........#",
+    "###########",
+]
+
+SAMPLE_2 = [
+    "#########",
+    "#......S#",
+    "#.#.#####",
+    "#...#...#",
+    "#.#####.#",
+    "#.......#",
+    "#.#####.#",
+    "#.#T....#",
+    "#########",
+]
+
+
+class TestMazeSolver(unittest.TestCase):
+    def assertValidPath(self, maze, path):
+        # starts at S, ends at T, moves one cell at a time and never enters a wall
+        self.assertIsNotNone(path)
+        self.assertEqual(maze[path[0][0]][path[0][1]], "S")
+        self.assertEqual(maze[path[-1][0]][path[-1][1]], "T")
+        for (a, b), (c, d) in zip(path, path[1:]):
+            self.assertEqual(abs(a - c) + abs(b - d), 1, f"{(a, b)} -> {(c, d)}")
+            self.assertNotEqual(maze[c][d], "#", f"walks into wall at {(c, d)}")
+
+    def shortestLength(self, maze):
+        # independent answer: number of cells on a shortest path, found by a plain
+        # breadth-first search that doesn't use the solver, Graph or dijkstra
+        cells = {(i, j): c for i, row in enumerate(maze) for j, c in enumerate(row)}
+        start = next(p for p, c in cells.items() if c == "S")
+        distance = {start: 1}
+        frontier = [start]
+        while frontier:
+            next_frontier = []
+            for i, j in frontier:
+                if cells[(i, j)] == "T":
+                    return distance[(i, j)]
+                for p in ((i - 1, j), (i + 1, j), (i, j - 1), (i, j + 1)):
+                    if cells.get(p, "#") != "#" and p not in distance:
+                        distance[p] = distance[(i, j)] + 1
+                        next_frontier.append(p)
+            frontier = next_frontier
+        return float("inf")
+
+    # Samples
+
+    def testSample1(self):
+        path = solve_maze(SAMPLE_1)
+        self.assertValidPath(SAMPLE_1, path)
+        self.assertEqual(len(path), 18)
+
+    def testSample2(self):
+        # two routes of equal length exist, so only check validity and length
+        path = solve_maze(SAMPLE_2)
+        self.assertValidPath(SAMPLE_2, path)
+        self.assertEqual(len(path), 23)
+
+    # Small mazes with one exact answer
+
+    def testStartNextToTarget(self):
+        self.assertEqual(solve_maze(["ST"]), [(0, 0), (0, 1)])
+
+    def testTargetAboveStart(self):
+        self.assertEqual(solve_maze(["T", "S"]), [(1, 0), (0, 0)])
+
+    def testStraightCorridor(self):
+        self.assertEqual(
+            solve_maze(["#####", "#S.T#", "#####"]),
+            [(1, 1), (1, 2), (1, 3)],
+        )
+
+    def testWindingCorridor(self):
+        maze = [
+            "#####",
+            "#S#T#",
+            "#.#.#",
+            "#...#",
+            "#####",
+        ]
+        self.assertEqual(
+            solve_maze(maze),
+            [(1, 1), (2, 1), (3, 1), (3, 2), (3, 3), (2, 3), (1, 3)],
+        )
+
+    def testAvoidsDeadEnd(self):
+        maze = [
+            "#######",
+            "#S....#",
+            "#.###.#",
+            "#.#T..#",
+            "#######",
+        ]
+        self.assertEqual(
+            solve_maze(maze),
+            [(1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (2, 5), (3, 5), (3, 4), (3, 3)],
+        )
+
+    # Choosing a short path
+
+    def testOpenGridGivesShortestPath(self):
+        # with no walls the path must be a straight-line distance long
+        maze = ["S....", ".....", ".....", "....T"]
+        path = solve_maze(maze)
+        self.assertValidPath(maze, path)
+        self.assertEqual(len(path), 3 + 4 + 1)
+
+    def testShortRouteBeatsLongRoute(self):
+        maze = [
+            "S.T",
+            ".#.",
+            "...",
+        ]
+        self.assertEqual(solve_maze(maze), [(0, 0), (0, 1), (0, 2)])
+
+    # Grid edges and shapes
+
+    def testNoBorderWalls(self):
+        # S and T in the corners, so neighbours outside the grid must be ignored
+        maze = ["S..", "##.", "T.."]
+        self.assertEqual(
+            solve_maze(maze),
+            [(0, 0), (0, 1), (0, 2), (1, 2), (2, 2), (2, 1), (2, 0)],
+        )
+
+    def testSingleColumn(self):
+        maze = ["S", ".", ".", "T"]
+        self.assertEqual(solve_maze(maze), [(0, 0), (1, 0), (2, 0), (3, 0)])
+
+    def testNonSquareMaze(self):
+        maze = ["S.........", "#########.", "T........."]
+        path = solve_maze(maze)
+        self.assertValidPath(maze, path)
+        self.assertEqual(len(path), 21)
+
+    # No path
+
+    def testTargetWalledOff(self):
+        self.assertIsNone(solve_maze(["S#T"]))
+
+    def testMissingTarget(self):
+        self.assertIsNone(solve_maze(["S.."]))
+
+    def testMissingStart(self):
+        self.assertIsNone(solve_maze(["..T"]))
+
+    # Scale and cross-checking
+
+    def testRandomMazesMatchDijkstra(self):
+        rng = random.Random(0)
+        for _ in range(100):
+            n, m = rng.randint(1, 12), rng.randint(2, 12)
+            maze = [["." if rng.random() < 0.7 else "#" for _ in range(m)] for _ in range(n)]
+            cells = rng.sample([(i, j) for i in range(n) for j in range(m)], 2)
+            (si, sj), (ti, tj) = cells
+            maze[si][sj], maze[ti][tj] = "S", "T"
+            maze = ["".join(row) for row in maze]
+
+            path = solve_maze(maze)
+            expected = self.shortestLength(maze)
+            if expected == float("inf"):
+                self.assertIsNone(path, maze)
+            else:
+                self.assertValidPath(maze, path)
+                self.assertEqual(len(path), expected, maze)
+
+    def testLargestMaze(self):
+        # 1000 x 1000 with no walls: path runs corner to corner
+        maze = ["S" + "." * 999] + ["." * 1000] * 998 + ["." * 999 + "T"]
+        path = solve_maze(maze)
+        self.assertEqual(path[0], (0, 0))
+        self.assertEqual(path[-1], (999, 999))
+        self.assertEqual(len(path), 1999)
 
 
 if __name__ == "__main__":
