@@ -151,128 +151,147 @@ class TestDijkstra(unittest.TestCase):
         for source, destination, cost in edges:
             self.graph.add_edge(source, destination, cost)
 
+    def path_cost(self, path):
+        return sum(self.graph.get_edges(u)[v] for u, v in zip(path, path[1:]))
+
     # Trivial graphs
 
-    def testStartWithNoEdges(self):
-        self.assertEqual(dijkstra(self.graph, "A"), {"A": 0})
+    def testStartIsTarget(self):
+        self.assertEqual(dijkstra(self.graph, "A", "A"), (0, ["A"]))
 
     def testSingleEdge(self):
         self.add_edges([("A", "B", 3)])
-        self.assertEqual(dijkstra(self.graph, "A"), {"A": 0, "B": 3})
+        self.assertEqual(dijkstra(self.graph, "A", "B"), (3, ["A", "B"]))
 
     def testChain(self):
         self.add_edges([("A", "B", 1), ("B", "C", 2), ("C", "D", 3)])
-        self.assertEqual(dijkstra(self.graph, "A"), {"A": 0, "B": 1, "C": 3, "D": 6})
+        self.assertEqual(dijkstra(self.graph, "A", "D"), (6, ["A", "B", "C", "D"]))
+
+    def testTargetPartWayAlongChain(self):
+        self.add_edges([("A", "B", 1), ("B", "C", 2), ("C", "D", 3)])
+        self.assertEqual(dijkstra(self.graph, "A", "C"), (3, ["A", "B", "C"]))
 
     # Choosing the shortest path
 
     def testIndirectPathBeatsDirectEdge(self):
         # A -> C costs 5 directly, but A -> B -> C costs 3
         self.add_edges([("A", "B", 1), ("B", "C", 2), ("A", "C", 5)])
-        self.assertEqual(dijkstra(self.graph, "A")["C"], 3)
+        self.assertEqual(dijkstra(self.graph, "A", "C"), (3, ["A", "B", "C"]))
 
     def testDirectEdgeBeatsIndirectPath(self):
         self.add_edges([("A", "B", 1), ("B", "C", 2), ("A", "C", 2)])
-        self.assertEqual(dijkstra(self.graph, "A")["C"], 2)
+        self.assertEqual(dijkstra(self.graph, "A", "C"), (2, ["A", "C"]))
 
     def testManyHopsBeatFewHops(self):
         self.add_edges([
             ("A", "Z", 100),
             ("A", "B", 1), ("B", "C", 1), ("C", "D", 1), ("D", "Z", 1),
         ])
-        self.assertEqual(dijkstra(self.graph, "A")["Z"], 4)
+        self.assertEqual(dijkstra(self.graph, "A", "Z"), (4, ["A", "B", "C", "D", "Z"]))
 
     def testCostImprovedAfterFirstDiscovery(self):
         # D is first reached via C (cost 10), then improved via B (cost 3),
-        # leaving a stale entry in the queue that must be ignored
+        # so the path must go through B, not C
         self.add_edges([
             ("A", "C", 1), ("C", "D", 9),
             ("A", "B", 2), ("B", "D", 1),
             ("D", "E", 1),
         ])
-        self.assertEqual(
-            dijkstra(self.graph, "A"),
-            {"A": 0, "B": 2, "C": 1, "D": 3, "E": 4},
-        )
+        self.assertEqual(dijkstra(self.graph, "A", "E"), (4, ["A", "B", "D", "E"]))
 
     def testTiedPathsGiveSameCost(self):
         self.add_edges([("A", "B", 1), ("A", "C", 1), ("B", "D", 1), ("C", "D", 1)])
-        self.assertEqual(dijkstra(self.graph, "A")["D"], 2)
+        cost, path = dijkstra(self.graph, "A", "D")
+        self.assertEqual(cost, 2)
+        self.assertIn(path, [["A", "B", "D"], ["A", "C", "D"]])
 
     # Direction and reachability
 
     def testEdgesAreDirected(self):
         self.add_edges([("A", "B", 1), ("C", "A", 1)])
         # C points to A but is not reachable from A
-        self.assertEqual(dijkstra(self.graph, "A"), {"A": 0, "B": 1, "C": INF})
+        self.assertEqual(dijkstra(self.graph, "A", "C"), (INF, None))
+        self.assertEqual(dijkstra(self.graph, "C", "B"), (2, ["C", "A", "B"]))
 
-    def testStartFromMiddleOfChain(self):
-        self.add_edges([("A", "B", 1), ("B", "C", 2), ("C", "D", 3)])
-        self.assertEqual(dijkstra(self.graph, "B"), {"A": INF, "B": 0, "C": 2, "D": 5})
+    def testTargetBehindStart(self):
+        self.add_edges([("A", "B", 1), ("B", "C", 2)])
+        self.assertEqual(dijkstra(self.graph, "B", "A"), (INF, None))
 
     def testDisconnectedComponent(self):
         self.add_edges([("A", "B", 1), ("X", "Y", 1)])
-        result = dijkstra(self.graph, "A")
-        self.assertEqual(result["B"], 1)
-        self.assertEqual(result["X"], INF)
+        self.assertEqual(dijkstra(self.graph, "A", "X"), (INF, None))
+        self.assertEqual(dijkstra(self.graph, "A", "Y"), (INF, None))
 
-    def testUnreachableSinkIsOmitted(self):
-        # Documents current behaviour: Y has no outgoing edges, so the graph
-        # doesn't list it as a vertex, and it only appears in the result if reached
-        self.add_edges([("A", "B", 1), ("X", "Y", 1)])
-        self.assertNotIn("Y", dijkstra(self.graph, "A"))
+    def testTargetNotInGraph(self):
+        self.add_edges([("A", "B", 1)])
+        self.assertEqual(dijkstra(self.graph, "A", "Z"), (INF, None))
+
+    def testStartWithNoEdges(self):
+        self.add_edges([("B", "C", 1)])
+        self.assertEqual(dijkstra(self.graph, "A", "C"), (INF, None))
 
     # Cycles and loops
 
     def testCycle(self):
         self.add_edges([("A", "B", 1), ("B", "C", 1), ("C", "A", 1)])
-        self.assertEqual(dijkstra(self.graph, "A"), {"A": 0, "B": 1, "C": 2})
+        self.assertEqual(dijkstra(self.graph, "A", "C"), (2, ["A", "B", "C"]))
 
     def testCycleBackToStartDoesNotLowerStartCost(self):
         self.add_edges([("A", "B", 1), ("B", "A", 1)])
-        self.assertEqual(dijkstra(self.graph, "A")["A"], 0)
+        self.assertEqual(dijkstra(self.graph, "A", "A"), (0, ["A"]))
 
     def testSelfLoop(self):
         self.add_edges([("A", "A", 5), ("A", "B", 1)])
-        self.assertEqual(dijkstra(self.graph, "A"), {"A": 0, "B": 1})
+        self.assertEqual(dijkstra(self.graph, "A", "B"), (1, ["A", "B"]))
 
     # Costs
 
     def testZeroCostEdges(self):
         self.add_edges([("A", "B", 0), ("B", "C", 0), ("A", "C", 1)])
-        self.assertEqual(dijkstra(self.graph, "A"), {"A": 0, "B": 0, "C": 0})
+        self.assertEqual(dijkstra(self.graph, "A", "C"), (0, ["A", "B", "C"]))
+
+    def testZeroCostCycle(self):
+        self.add_edges([("A", "B", 0), ("B", "C", 0), ("C", "B", 0), ("C", "D", 0)])
+        self.assertEqual(dijkstra(self.graph, "A", "D"), (0, ["A", "B", "C", "D"]))
 
     def testFloatCosts(self):
         self.add_edges([("A", "B", 0.5), ("B", "C", 0.25), ("A", "C", 1.0)])
-        self.assertAlmostEqual(dijkstra(self.graph, "A")["C"], 0.75)
+        cost, path = dijkstra(self.graph, "A", "C")
+        self.assertAlmostEqual(cost, 0.75)
+        self.assertEqual(path, ["A", "B", "C"])
 
     # Vertex types
 
     def testIntegerVertices(self):
         self.add_edges([(1, 2, 4), (1, 3, 1), (3, 2, 1), (2, 4, 1)])
-        self.assertEqual(dijkstra(self.graph, 1), {1: 0, 2: 2, 3: 1, 4: 3})
+        self.assertEqual(dijkstra(self.graph, 1, 4), (3, [1, 3, 2, 4]))
 
     def testTupleVertices(self):
         self.add_edges([((0, 0), (0, 1), 1), ((0, 1), (1, 1), 1), ((0, 0), (1, 1), 5)])
-        self.assertEqual(dijkstra(self.graph, (0, 0))[(1, 1)], 2)
+        self.assertEqual(
+            dijkstra(self.graph, (0, 0), (1, 1)),
+            (2, [(0, 0), (0, 1), (1, 1)]),
+        )
 
     # Side effects
 
     def testDoesNotModifyGraph(self):
         self.add_edges([("A", "B", 1), ("B", "C", 2)])
-        dijkstra(self.graph, "A")
+        dijkstra(self.graph, "A", "C")
         self.assertEqual(self.graph.get_vertices(), {"A": {"B": 1}, "B": {"C": 2}})
 
     def testRepeatedCallsGiveSameResult(self):
         self.add_edges([("A", "B", 1), ("B", "C", 2), ("A", "C", 5)])
-        self.assertEqual(dijkstra(self.graph, "A"), dijkstra(self.graph, "A"))
+        self.assertEqual(dijkstra(self.graph, "A", "C"), dijkstra(self.graph, "A", "C"))
 
     # Scale
 
     def testLongChain(self):
         for i in range(1000):
             self.graph.add_edge(i, i + 1, 1)
-        self.assertEqual(dijkstra(self.graph, 0)[1000], 1000)
+        cost, path = dijkstra(self.graph, 0, 1000)
+        self.assertEqual(cost, 1000)
+        self.assertEqual(path, list(range(1001)))
 
     def testMatchesBellmanFordOnRandomGraphs(self):
         rng = random.Random(0)
@@ -298,9 +317,16 @@ class TestDijkstra(unittest.TestCase):
                     if expected[u] + c < expected[v]:
                         expected[v] = expected[u] + c
 
-            result = dijkstra(self.graph, 0)
-            for v in range(n):
-                self.assertEqual(result.get(v, INF), expected[v], f"edges={edges}")
+            for target in range(n):
+                cost, path = dijkstra(self.graph, 0, target)
+                self.assertEqual(cost, expected[target], f"edges={edges}")
+                if cost == INF:
+                    self.assertIsNone(path)
+                else:
+                    # the path must be real, start and end correctly, and cost what was reported
+                    self.assertEqual(path[0], 0)
+                    self.assertEqual(path[-1], target)
+                    self.assertEqual(self.path_cost(path), cost, f"edges={edges}")
 
 
 if __name__ == "__main__":
