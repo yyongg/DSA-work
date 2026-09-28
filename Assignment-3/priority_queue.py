@@ -18,14 +18,14 @@ class Min_Priority_Queue():
         """
         return true if the queue is empty, false otherwise
         """
-        return True if self.q else False
+        return not self.entry_map
 
     def add_with_priority(self, elem: Any, priority: float):
         """
         Add [elem] with at level [priority]
         """
         self.entry_map[elem] = priority
-        heapq.heappush(self.q,(elem,priority))
+        heapq.heappush(self.q,(priority,elem))
 
     def next_elem(self) -> Any:
         """
@@ -40,7 +40,7 @@ class Min_Priority_Queue():
                 continue
 
             del self.entry_map[elem]
-            return elem
+            return elem, priority
 
         return None
 
