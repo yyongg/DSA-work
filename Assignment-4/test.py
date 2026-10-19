@@ -1,8 +1,20 @@
+import os
 import random
+import tempfile
 import time
 import unittest
 from collections.abc import Callable, Sequence
 
+from sequence_alignment import (
+    GAP,
+    MATCH,
+    MISMATCH,
+    match_score,
+    read_kotlin,
+    score_matrix,
+    show_alignment,
+    smith_waterman,
+)
 from square_matrix import SquareMatrix
 
 
@@ -93,6 +105,113 @@ class TestStrassen(unittest.TestCase):
     def testDifferentSizesRaise(self):
         with self.assertRaises(ValueError):
             random_matrix(2).strassen_multiply(random_matrix(4))
+
+
+class TestSequenceAlignment(unittest.TestCase):
+    def testMatchScore(self):
+        self.assertEqual(match_score("A", "A"), MATCH)
+        self.assertEqual(match_score("A", "C"), MISMATCH)
+
+    def testScoreMatrixShape(self):
+        H = score_matrix("ACG", "ACGTT")
+        self.assertEqual(len(H), 4)
+        self.assertEqual(len(H[0]), 6)
+
+    def testScoreMatrixFirstRowAndColumnAreZero(self):
+        H = score_matrix("TGTTACGG", "GGTTGACTA")
+        self.assertEqual(H[0], [0] * 10)
+        self.assertEqual([row[0] for row in H], [0] * 9)
+
+    def testScoreMatrixNeverNegative(self):
+        H = score_matrix("AAAACCCC", "GGGGTTTT")
+        for row in H:
+            for value in row:
+                self.assertGreaterEqual(value, 0)
+
+    def testScoreMatrixWikipedia(self):
+        # Example table from the Smith-Waterman Wikipedia page
+        H = score_matrix("TGTTACGG", "GGTTGACTA")
+        self.assertEqual(H[1], [0, 0, 0, 3, 3, 1, 0, 0, 3, 1])
+        self.assertEqual(H[6][7], 13)
+
+    def testWikipediaExample(self):
+        self.assertEqual(smith_waterman("TGTTACGG", "GGTTGACTA"), (13, "GTT-AC", "GTTGAC"))
+
+    def testIdenticalSequences(self):
+        self.assertEqual(smith_waterman("ACGTACGT", "ACGTACGT"), (8 * MATCH, "ACGTACGT", "ACGTACGT"))
+
+    def testNoMatch(self):
+        self.assertEqual(smith_waterman("AAAA", "CCCC"), (0, "", ""))
+
+    def testEmptySequence(self):
+        self.assertEqual(smith_waterman("", "ACGT"), (0, "", ""))
+        self.assertEqual(smith_waterman("ACGT", ""), (0, "", ""))
+
+    def testFindsSubstring(self):
+        # a local alignment ignores the unrelated ends of the longer sequence
+        self.assertEqual(smith_waterman("GATTACA", "CCCCGATTACACCCC"), (7 * MATCH, "GATTACA", "GATTACA"))
+
+    def testFindsSubstringInRandomDNA(self):
+        random.seed(1)
+        query = "".join(random.choice("ACGT") for _ in range(40))
+        left = "".join(random.choice("ACGT") for _ in range(200))
+        right = "".join(random.choice("ACGT") for _ in range(200))
+        score, aligned_query, aligned_target = smith_waterman(query, left + query + right)
+        self.assertEqual(score, 40 * MATCH)
+        self.assertEqual(aligned_query, query)
+        self.assertEqual(aligned_target, query)
+
+    def testGapInFirstSequence(self):
+        self.assertEqual(smith_waterman("ACGTTGCA", "ACGTATGCA"), (8 * MATCH + GAP, "ACGT-TGCA", "ACGTATGCA"))
+
+    def testGapInSecondSequence(self):
+        self.assertEqual(smith_waterman("ACGTATGCA", "ACGTTGCA"), (8 * MATCH + GAP, "ACGTATGCA", "ACGT-TGCA"))
+
+    def testMismatchInMiddle(self):
+        self.assertEqual(smith_waterman("ACGTCAGT", "ACGTGAGT"), (7 * MATCH + MISMATCH, "ACGTCAGT", "ACGTGAGT"))
+
+    def testAlignedStringsSameLength(self):
+        _, aligned_a, aligned_b = smith_waterman("TTGACACCCTCCCAATTGTA", "ACCCCAGGCTTTACACAGGAAC")
+        self.assertEqual(len(aligned_a), len(aligned_b))
+
+    def testAlignmentScoreMatchesReturnedScore(self):
+        # rescoring the returned alignment column by column gives the same score
+        score, aligned_a, aligned_b = smith_waterman("TTGACACCCTCCCAATTGTA", "ACCCCAGGCTTTACACAGGAAC")
+        total = 0
+        for x, y in zip(aligned_a, aligned_b):
+            if x == "-" or y == "-":
+                total += GAP
+            else:
+                total += match_score(x, y)
+        self.assertEqual(total, score)
+
+    def testAlignedPartsComeFromInputs(self):
+        a = "TTGACACCCTCCCAATTGTA"
+        b = "ACCCCAGGCTTTACACAGGAAC"
+        _, aligned_a, aligned_b = smith_waterman(a, b)
+        self.assertIn(aligned_a.replace("-", ""), a)
+        self.assertIn(aligned_b.replace("-", ""), b)
+
+    def testShowAlignment(self):
+        self.assertEqual(show_alignment("GTT-AC", "GTTGAC"), "GTT-AC\n||| ||\nGTTGAC\n")
+
+    def testShowAlignmentWrapsRows(self):
+        text = show_alignment("AAAA", "AAAA", width=2)
+        self.assertEqual(text, "AA\n||\nAA\n\nAA\n||\nAA\n")
+
+    def testReadKotlin(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".kt", delete=False) as f:
+            f.write('// comment\nval genomeSnippet = "ACGT"\nval testAgainst = "GGTT"\n')
+        try:
+            self.assertEqual(read_kotlin(f.name), {"genomeSnippet": "ACGT", "testAgainst": "GGTT"})
+        finally:
+            os.remove(f.name)
+
+    def testGenomeMatchesSnippet(self):
+        # testAgainst should line up with the part of targetGenome holding genomeSnippet
+        seqs = read_kotlin(os.path.join(os.path.dirname(__file__), "Genome.kt"))
+        _, _, aligned_target = smith_waterman(seqs["testAgainst"], seqs["targetGenome"])
+        self.assertEqual(aligned_target.replace("-", ""), seqs["genomeSnippet"])
 
 
 class TestTiming(unittest.TestCase):
