@@ -52,7 +52,7 @@ class TestCorrectness(unittest.TestCase):
 
 
 class TestSpeed(unittest.TestCase):
-    SIZES = [2 ** p for p in range(4, 16)]  # 16 to 2048
+    SIZES = [2 ** p for p in range(4, 16)]  # 16 to 32768
     REPEATS = 3
 
     def testCompareSpeed(self):
