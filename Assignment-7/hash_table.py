@@ -10,6 +10,7 @@ class HashTable():
     def __init__(self, initial_length: int) -> None:
         if initial_length < 1:
             raise ValueError("Set initial length greater than 0")
+
         self.length = initial_length
         self.table: list[list[tuple[Any,Any]]] = [[] for _ in range(self.length)]
         self.active = 0
@@ -17,7 +18,7 @@ class HashTable():
     def _rehash(self):
         """Helper function to rehash when the table fills up"""
 
-        new_length = next_prime(self.length)
+        new_length = next_prime(self.length * 2)
         new_table = HashTable(new_length)
         for bucket in self.table:
             for pair in bucket:
@@ -33,7 +34,7 @@ class HashTable():
             if pair[0] == k:
                 return i
 
-        raise IndexError("Key does not exist in bucket")
+        raise KeyError("Key does not exist in bucket")
 
     def get(self, k: Any) -> Any:
         """
@@ -47,7 +48,7 @@ class HashTable():
         """
 
         hashed_key = hash_function(k,self.length)
-        return self.table[hashed_key][self._search_bucket(self.table[hashed_key],k)]
+        return self.table[hashed_key][self._search_bucket(self.table[hashed_key],k)][1]
 
     def insert(self, k: Any, v: Any):
         """
@@ -69,7 +70,7 @@ class HashTable():
             i = self._search_bucket(self.table[hashed_key], k)
             self.table[hashed_key][i] = (k,v)
 
-        except IndexError:
+        except KeyError:
             # append another kv pair into bucket if key doesn't exists
             self.table[hashed_key].append((k,v))
             self.active += 1
@@ -86,5 +87,9 @@ class HashTable():
         del self.table[hashed_key][self._search_bucket(self.table[hashed_key],k)]
         self.active -= 1
 
+    def items(self) -> list[tuple[Any, Any]]:
+        """Return every key-value pair stored in the table."""
+        return [pair for bucket in self.table for pair in bucket]
+
     def __getitem__(self, k: Any):
-        self.get(k)
+        return self.get(k)
