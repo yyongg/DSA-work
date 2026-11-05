@@ -1,10 +1,11 @@
-"""Hash function implementation using"""
+"""Hash function implementation"""
 
 from typing import Any
 
 def hash_function(k: Any, l: int) -> int:
     """
-    Generate index for hash table using modular hashing.
+    Generate index for hash table using modular hashing and Homer's method
+    for generating hash codes.
     
     Args:
         k (Any): key value that we need to create an index for
@@ -17,8 +18,7 @@ def hash_function(k: Any, l: int) -> int:
     hash_code: int = 0
 
     k = str(k)
-    l_k: int = len(k)
-    for i, c in enumerate(k):
-        hash_code += ord(c) * prime_base^(l_k-(i+1))
+    for c in enumerate(k):
+        hash_code = hash_code * prime_base + ord(c)
 
     return hash_code % l
